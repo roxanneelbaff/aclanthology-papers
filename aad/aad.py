@@ -62,28 +62,31 @@ class AADSearch:
 
         keep_lst = []
         for field_ in self.fields:
+            field_df = processed_df.copy() 
             for filter_ in filter_str_lst:
-                field_df = processed_df.copy() 
                 field_df = field_df[field_df[f"{field_}_lower"].astype(str).str.contains(filter_)]
-                keep_lst.extend(field_df["ID"].values)
+            keep_lst.extend(field_df["ID"].values)
         
 
         keep_lst = list(set(keep_lst))
         self.filtered_df = self.df[self.df["ID"].isin(keep_lst)]
+        
         return self.filtered_df
 
     def download_papers(self, folder_name):
         if self.filtered_df is None:
             self.filter()
+        utils.create_folder(folder_name)
+        self.filtered_df.to_csv(f"{folder_name}/papers.csv")
 
         for _, row in self.filtered_df.iterrows():
             try:
                 url = row['url'] if row["url"].endswith(".pdf")  else row['url'] +".pdf"
-                utils.create_folder(folder_name)
+                
                 author =row["author"].split(",")[0] if row["author"] is not None and len(row["author"]) >0 else ""
                 name = utils.get_file_name_from_fields(row["title"], row["year"], author)
 
-                urllib.request.urlretrieve(url, os.path.join(folder_name, name))
+                urllib.request.urlretrieve(url, os.path.join(folder_name, f"{name}.pdf"))
             except Exception as e:
                 print(f"Error occurred for URL { row['url']}")
         
