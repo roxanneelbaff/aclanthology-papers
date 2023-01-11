@@ -44,32 +44,38 @@ class AADSearch:
         if (not utils.file_exists(AADSearch.PROCESSED_DATA_PATH)) or self.force_download:
             with open(AADSearch.BIB_FILE, encoding="utf-8") as bibtex_file:
                 bibtex_database = bibtexparser.load(bibtex_file)
-                self.df =  self.parse_bib(bibtex_database.entries)
-                self.df.to_parquet()
+                self.df =  pd.DataFrame(bibtex_database.entries)
+                self.df.to_parquet(AADSearch.PROCESSED_DATA_PATH)
         else:
             self.df = pd.read_parquet(AADSearch.PROCESSED_DATA_PATH)
 
     def filter(self) -> pd.DataFrame:
-        filter_str_lst = ["|".join([x.lower() for x in lst_]) for lst_ in self.keywords] 
+        filter_str_lst = [f"({'|'.join([x.lower() for x in lst_])})" for lst_ in self.keywords]
+        #filter_str = "&".join([f"({'|'.join([x.lower() for x in lst_])})" for lst_ in self.keywords])
+        #filter_str = f"({filter_str})"
         #self.filtered_df = self.df.copy()
-
+        #print(filter_str)
         def _add_lower_case(row, fields):
             for f in fields:
-                row[f"{f}_lower"] = row[f].lower() if row[f] is not None and len(row[f])>0 else ""
+                row[f"{f}_lower"] = row[f].lower() if row[f] is not None else ""
             return row
 
-        processed_df = self.df.apply(_add_lower_case,   axis=1, args=(self.fields,),).copy()
+        processed_df = self.df[self.fields+["ID"]].copy()
+        processed_df.fillna("", inplace=True)
+        processed_df = processed_df.apply(_add_lower_case,   axis=1, args=(self.fields,),)
 
         keep_lst = []
         for field_ in self.fields:
-            field_df = processed_df.copy() 
-            for filter_ in filter_str_lst:
-                field_df = field_df[field_df[f"{field_}_lower"].astype(str).str.contains(filter_)]
+            field_df = processed_df.copy()
+            for f in filter_str_lst:
+                ##print(f)
+                field_df = field_df[field_df[f"{field_}_lower"].astype(str).str.contains(f)]
             keep_lst.extend(field_df["ID"].values)
         
 
         keep_lst = list(set(keep_lst))
         self.filtered_df = self.df[self.df["ID"].isin(keep_lst)]
+        print(f"There are {len(self.filtered_df)} papers")
         
         return self.filtered_df
 
@@ -77,7 +83,16 @@ class AADSearch:
         if self.filtered_df is None:
             self.filter()
         utils.create_folder(folder_name)
-        self.filtered_df.to_csv(f"{folder_name}/papers.csv")
+        self.filtered_df[['url',
+                            'year',
+                            'editor',
+                            'title',
+                            'ENTRYTYPE',
+                            'ID',
+                            'booktitle',
+                            'author',
+                            'journal',
+                            'note']].to_csv(f"{folder_name}/papers.csv")
 
         for _, row in self.filtered_df.iterrows():
             try:
@@ -89,4 +104,19 @@ class AADSearch:
                 urllib.request.urlretrieve(url, os.path.join(folder_name, f"{name}.pdf"))
             except Exception as e:
                 print(f"Error occurred for URL { row['url']}")
-        
+    
+    
+def download_from_urls( url_arr: list, folder_name):
+    utils.create_folder(folder_name)
+    for url in url_arr:
+        try:
+            url = url if url.endswith(".pdf")  else url +".pdf"
+            
+            name =url.split("/")[-1].replace(".pdf", "")
+
+            urllib.request.urlretrieve(url, os.path.join(folder_name, f"{name}.pdf"))
+        except Exception as e:
+            print(f"Error occurred for URL { url}")
+    
+
+
