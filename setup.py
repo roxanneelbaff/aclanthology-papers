@@ -10,7 +10,7 @@ setup(
     author_email="roxanne.elbaff@gmail.com",
     license="MIT",
     packages=setuptools.find_packages(),
-    install_requires=["pandas", "tqdm", "bibtexparser==1.4.0"],
+    install_requires=["pandas", "tqdm", "bibtexparser==1.4.0", "clean-text"],
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Science/Research",

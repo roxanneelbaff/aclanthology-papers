@@ -62,6 +62,7 @@ class AADSearch:
         filter_str_lst = [
             f"({'|'.join([x.lower() for x in lst_])})" for lst_ in self.keywords
         ]
+        print(f"filter_str_lst {filter_str_lst}")
         # filter_str = "&".join([f"({'|'.join([x.lower() for x in lst_])})" for lst_ in self.keywords])
         # filter_str = f"({filter_str})"
         # self.filtered_df = self.df.copy()
@@ -80,10 +81,12 @@ class AADSearch:
         )
 
         keep_lst = []
+
         for field_ in self.fields:
+            print(field_, len(processed_df))
             field_df = processed_df.copy()
             for f in filter_str_lst:
-                ##print(f)
+
                 field_df = field_df[
                     field_df[f"{field_}_lower"].astype(str).str.contains(f)
                 ]
@@ -95,7 +98,7 @@ class AADSearch:
 
         return self.filtered_df
 
-    def download_papers(self, folder_name):
+    def download_papers(self, folder_name: str):
         if self.filtered_df is None:
             self.filter()
         utils.create_folder(folder_name)
@@ -134,7 +137,7 @@ class AADSearch:
                 print(f"Error occurred for URL { row['url']}")
 
 
-def download_from_urls(url_arr: list, folder_name):
+def download_from_urls(url_arr: list, folder_name: str):
     utils.create_folder(folder_name)
     for url in url_arr:
         try:

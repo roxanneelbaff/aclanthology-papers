@@ -1,7 +1,7 @@
 import pathlib
 import os
-from pathlib import Path
 import re
+from cleantext import clean
 
 
 def create_folder(folder_path):
@@ -19,7 +19,9 @@ def get_alphanumeric(str):
 
 def get_file_name_from_fields(title, year, first_author):
     author = "-".join(get_alphanumeric(first_author.lower()).split(" "))
-    title = "-".join(get_alphanumeric(title.lower()).split(" "))
-    name = f"{author}{year}_{title}"
+
+    title = clean(title, lower=True, no_line_breaks=True, no_punct=True)
+    title_joined = "-".join(title.split(" "))
+    name = f"{author}{year}_{title_joined}"
 
     return name
