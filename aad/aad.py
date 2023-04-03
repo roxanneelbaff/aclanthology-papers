@@ -7,10 +7,10 @@ import gzip
 import shutil
 import bibtexparser
 import aad.utils as utils
+from cleantext import clean
 
 
 class AADSearch:
-
     ACLWEB_ANTH_URL: ClassVar = "https://aclanthology.org/anthology+abstracts.bib.gz"
     COMPRESSED_BIB: ClassVar = "../data/acl_anthology_bib_w_abstract.bib.gz"
     BIB_FILE: ClassVar = COMPRESSED_BIB.replace(".gz", "")
@@ -31,6 +31,13 @@ class AADSearch:
         self.filter_all = filter_all
 
         self.process_bib()
+    @staticmethod
+    def _clean_txt(row, fields):
+        for f in fields:
+            row[f"{f}_clean"] = clean(row[f], 
+                                      no_currency_symbols=True,
+                                      no_punct=True)
+        return row
 
     def process_bib(self):
         if (
@@ -39,6 +46,7 @@ class AADSearch:
                 or utils.file_exists(AADSearch.BIB_FILE)
             )
         ) or self.force_download:
+            utils.create_folder("../data")
             urllib.request.urlretrieve(
                 AADSearch.ACLWEB_ANTH_URL, AADSearch.COMPRESSED_BIB
             )
@@ -60,35 +68,24 @@ class AADSearch:
 
     def filter(self) -> pd.DataFrame:
         filter_str_lst = [
-            f"({'|'.join([x.lower() for x in lst_])})" for lst_ in self.keywords
+            f"({'|'.join(lst_)})" for lst_ in self.keywords
         ]
         print(f"filter_str_lst {filter_str_lst}")
-        # filter_str = "&".join([f"({'|'.join([x.lower() for x in lst_])})" for lst_ in self.keywords])
-        # filter_str = f"({filter_str})"
-        # self.filtered_df = self.df.copy()
-        # print(filter_str)
-        def _add_lower_case(row, fields):
-            for f in fields:
-                row[f"{f}_lower"] = row[f].lower() if row[f] is not None else ""
-            return row
 
         processed_df = self.df[self.fields + ["ID"]].copy()
         processed_df.fillna("", inplace=True)
-        processed_df = processed_df.apply(
-            _add_lower_case,
-            axis=1,
-            args=(self.fields,),
-        )
-
+        processed_df = processed_df.apply(AADSearch._clean_txt,
+                                          args=(self.fields,), axis=1)
         keep_lst = []
 
         for field_ in self.fields:
             print(field_, len(processed_df))
             field_df = processed_df.copy()
+            
             for f in filter_str_lst:
-
+                print(f)
                 field_df = field_df[
-                    field_df[f"{field_}_lower"].astype(str).str.contains(f)
+                    field_df[f"{field_}_clean"].str.contains(fr"\b({f})", case=False)
                 ]
             keep_lst.extend(field_df["ID"].values)
 
@@ -98,7 +95,7 @@ class AADSearch:
 
         return self.filtered_df
 
-    def download_papers(self, folder_name: str):
+    def download_papers(self, folder_name: str, overview_only=False):
         if self.filtered_df is None:
             self.filter()
         utils.create_folder(folder_name)
@@ -117,6 +114,8 @@ class AADSearch:
             ]
         ].to_csv(f"{folder_name}/papers.csv")
 
+        if overview_only:
+            return 
         for _, row in self.filtered_df.iterrows():
             try:
                 url = row["url"] if row["url"].endswith(".pdf") else row["url"] + ".pdf"
