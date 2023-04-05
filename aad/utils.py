@@ -22,6 +22,6 @@ def get_file_name_from_fields(title, year, first_author):
 
     title = clean(title, lower=True, no_line_breaks=True, no_punct=True)
     title_joined = "-".join(title.split(" "))
-    name = f"{author}{year}_{title_joined}"
+    name = f"{author}{year}-{title_joined}"
 
     return name

@@ -14,6 +14,7 @@ class AADSearch:
     ACLWEB_ANTH_URL: ClassVar = "https://aclanthology.org/anthology+abstracts.bib.gz"
     COMPRESSED_BIB: ClassVar = "../data/acl_anthology_bib_w_abstract.bib.gz"
     BIB_FILE: ClassVar = COMPRESSED_BIB.replace(".gz", "")
+
     PROCESSED_DATA_PATH: ClassVar = "../data/acl_anthology_w_abstract.parquet"
 
     def __init__(
@@ -31,12 +32,11 @@ class AADSearch:
         self.filter_all = filter_all
 
         self.process_bib()
+
     @staticmethod
     def _clean_txt(row, fields):
         for f in fields:
-            row[f"{f}_clean"] = clean(row[f], 
-                                      no_currency_symbols=True,
-                                      no_punct=True)
+            row[f"{f}_clean"] = clean(row[f], no_currency_symbols=True, no_punct=True)
         return row
 
     def process_bib(self):
@@ -47,45 +47,50 @@ class AADSearch:
             )
         ) or self.force_download:
             utils.create_folder("../data")
+            print("Retrieving bib from web...")
+
             urllib.request.urlretrieve(
                 AADSearch.ACLWEB_ANTH_URL, AADSearch.COMPRESSED_BIB
             )
 
         if (not utils.file_exists(AADSearch.BIB_FILE)) or self.force_download:
             with gzip.open(AADSearch.COMPRESSED_BIB, "rb") as f_in:
+                print("copying file...")
                 with open(AADSearch.BIB_FILE, "wb") as f_out:
+                    print("copying file...")
                     shutil.copyfileobj(f_in, f_out)
 
         if (
             not utils.file_exists(AADSearch.PROCESSED_DATA_PATH)
         ) or self.force_download:
             with open(AADSearch.BIB_FILE, encoding="utf-8") as bibtex_file:
+                print("Loading bib...")
                 bibtex_database = bibtexparser.load(bibtex_file)
+                print("Loading dataframe...")
                 self.df = pd.DataFrame(bibtex_database.entries)
+                print("saving dataframe...")
                 self.df.to_parquet(AADSearch.PROCESSED_DATA_PATH)
         else:
             self.df = pd.read_parquet(AADSearch.PROCESSED_DATA_PATH)
 
     def filter(self) -> pd.DataFrame:
-        filter_str_lst = [
-            f"({'|'.join(lst_)})" for lst_ in self.keywords
-        ]
-        print(f"filter_str_lst {filter_str_lst}")
+        filter_str_lst = [f"({'|'.join(lst_)})" for lst_ in self.keywords]
+        print(f"The processed keywords are: {filter_str_lst}")
 
         processed_df = self.df[self.fields + ["ID"]].copy()
         processed_df.fillna("", inplace=True)
-        processed_df = processed_df.apply(AADSearch._clean_txt,
-                                          args=(self.fields,), axis=1)
+        processed_df = processed_df.apply(
+            AADSearch._clean_txt, args=(self.fields,), axis=1
+        )
         keep_lst = []
 
         for field_ in self.fields:
-            print(field_, len(processed_df))
             field_df = processed_df.copy()
-            
+
             for f in filter_str_lst:
-                print(f)
                 field_df = field_df[
-                    field_df[f"{field_}_clean"].str.contains(fr"\b({f})", case=False)
+                    field_df[f"{field_}_clean"].str.contains(rf"\b({f})",
+                                                             case=False)
                 ]
             keep_lst.extend(field_df["ID"].values)
 
@@ -115,7 +120,7 @@ class AADSearch:
         ].to_csv(f"{folder_name}/papers.csv")
 
         if overview_only:
-            return 
+            return
         for _, row in self.filtered_df.iterrows():
             try:
                 url = row["url"] if row["url"].endswith(".pdf") else row["url"] + ".pdf"
@@ -133,7 +138,8 @@ class AADSearch:
                     url, os.path.join(folder_name, f"{name}.pdf")
                 )
             except Exception as e:
-                print(f"Error occurred for URL { row['url']}")
+                print(f"Error occurred for URL { row['url']}"
+                      f"with {e.message()}")
 
 
 def download_from_urls(url_arr: list, folder_name: str):
@@ -144,6 +150,9 @@ def download_from_urls(url_arr: list, folder_name: str):
 
             name = url.split("/")[-1].replace(".pdf", "")
 
-            urllib.request.urlretrieve(url, os.path.join(folder_name, f"{name}.pdf"))
+            urllib.request.urlretrieve(url, 
+                                       os.path.join(folder_name, f"{name}.pdf")
+                                       )
         except Exception as e:
-            print(f"Error occurred for URL { url}")
+            print(f"Error occurred for URL {url}"
+                  f"with {e.message()}")
