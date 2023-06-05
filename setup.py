@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name="aad",
-    version="1.5.1",
+    version="1.5.2",
     description="Python package for downloading aclanthology papers based on keywords",
     # url='',
     author="Roxanne El Baff",

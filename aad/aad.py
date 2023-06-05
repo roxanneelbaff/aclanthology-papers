@@ -89,8 +89,7 @@ class AADSearch:
 
             for f in filter_str_lst:
                 field_df = field_df[
-                    field_df[f"{field_}_clean"].str.contains(rf"\b({f})",
-                                                             case=False)
+                    field_df[f"{field_}_clean"].str.contains(rf"\b({f})", case=False)
                 ]
             keep_lst.extend(field_df["ID"].values)
 
@@ -103,43 +102,50 @@ class AADSearch:
     def download_papers(self, folder_name: str, overview_only=False):
         if self.filtered_df is None:
             self.filter()
+        keep_cols = [
+            "url",
+            "year",
+            "editor",
+            "title",
+            "ENTRYTYPE",
+            "ID",
+            "booktitle",
+            "author",
+            "journal",
+            "note",
+        ]
         utils.create_folder(folder_name)
-        self.filtered_df[
-            [
-                "url",
-                "year",
-                "editor",
-                "title",
-                "ENTRYTYPE",
-                "ID",
-                "booktitle",
-                "author",
-                "journal",
-                "note",
-            ]
-        ].to_csv(f"{folder_name}/papers.csv")
+        self.filtered_df[keep_cols].to_csv(f"{folder_name}/papers.csv")
 
-        if overview_only:
-            return
-        for _, row in self.filtered_df.iterrows():
-            try:
-                url = row["url"] if row["url"].endswith(".pdf") else row["url"] + ".pdf"
+        if not overview_only:
+            self.filtered_df = self.filtered_df.apply(
+                                                AADSearch._download_url,
+                                                axis=1,
+                                                args=(folder_name,))
+            self.filtered_df[keep_cols + ["local_path"]].to_csv(
+                f"{folder_name}/papers_w_local_links.csv"
+            )
 
-                author = (
-                    row["author"].split(",")[0]
-                    if row["author"] is not None and len(row["author"]) > 0
-                    else ""
-                )
-                name = utils.get_file_name_from_fields(
-                    row["title"], row["year"], author
-                )
+    def _download_url(row, folder_name):
+        try:
+            url = row["url"] if row["url"].endswith(".pdf") else row["url"] + ".pdf"
+            row["local_path"] = ""
+            author = (
+                row["author"].split(",")[0]
+                if row["author"] is not None and len(row["author"]) > 0
+                else ""
+            )
+            name = utils.get_file_name_from_fields(row["title"],
+                                                   row["year"],
+                                                   author)
 
-                urllib.request.urlretrieve(
-                    url, os.path.join(folder_name, f"{name}.pdf")
-                )
-            except Exception as e:
-                print(f"Error occurred for URL { row['url']}"
-                      f"with {e.message()}")
+            new_filename, _ = urllib.request.urlretrieve(
+                url, os.path.join(folder_name, f"{name}.pdf")
+            )
+            row["local_path"] = new_filename
+        except Exception as e:
+            print(f"Error occurred for URL { row['url']}" f"with {e}")
+        return row
 
 
 def download_from_urls(url_arr: list, folder_name: str):
@@ -150,9 +156,6 @@ def download_from_urls(url_arr: list, folder_name: str):
 
             name = url.split("/")[-1].replace(".pdf", "")
 
-            urllib.request.urlretrieve(url, 
-                                       os.path.join(folder_name, f"{name}.pdf")
-                                       )
+            urllib.request.urlretrieve(url, os.path.join(folder_name, f"{name}.pdf"))
         except Exception as e:
-            print(f"Error occurred for URL {url}"
-                  f"with {e.message()}")
+            print(f"Error occurred for URL {url}" f"with {e}")
